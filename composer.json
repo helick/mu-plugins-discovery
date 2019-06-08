@@ -1,0 +1,43 @@
+{
+    "name": "helick/mu-plugins-discover-command",
+    "type": "wp-cli-package",
+    "description": "The Helick must-use plugins discover command",
+    "keywords": [
+        "helick",
+        "wp-cli"
+    ],
+    "license": "MIT",
+    "support": {
+        "issues": "https://github.com/helick/mu-plugins-discover-command/issues",
+        "source": "https://github.com/helick/mu-plugins-discover-command"
+    },
+    "authors": [
+        {
+            "name": "Evgenii Nasyrov",
+            "email": "evgenii@helick.io"
+        }
+    ],
+    "require": {
+        "php": ">=7.1",
+        "wp-cli/wp-cli": "^2.2"
+    },
+    "require-dev": {
+        "squizlabs/php_codesniffer": "^3.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "Helick\\MUPluginsDiscovery\\": "src/"
+        },
+        "files": [
+            "bootstrap.php"
+        ]
+    },
+    "scripts": {
+        "lint": [
+            "phpcs -p --standard=psr2 src"
+        ]
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
