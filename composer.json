@@ -8,8 +8,8 @@
     ],
     "license": "MIT",
     "support": {
-        "issues": "https://github.com/helick/mu-plugins-discover-command/issues",
-        "source": "https://github.com/helick/mu-plugins-discover-command"
+        "issues": "https://github.com/helick/mu-plugins-discovery/issues",
+        "source": "https://github.com/helick/mu-plugins-discovery"
     },
     "authors": [
         {
