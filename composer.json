@@ -1,5 +1,5 @@
 {
-    "name": "helick/mu-plugins-discover-command",
+    "name": "helick/mu-plugins-discovery",
     "type": "wp-cli-package",
     "description": "The Helick must-use plugins discover command",
     "keywords": [
