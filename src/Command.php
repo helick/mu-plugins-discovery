@@ -2,6 +2,8 @@
 
 namespace Helick\MUPluginsDiscovery;
 
+use Symfony\Component\Finder\Finder;
+use Symfony\Component\Finder\SplFileInfo;
 use WP_CLI;
 
 final class Command
@@ -19,71 +21,125 @@ final class Command
     /**
      * Rebuild the cached must-use plugins manifest.
      *
+     * @when before_wp_load
+     *
      * @return void
      */
     public function __invoke(): void
     {
-        if (!function_exists('get_plugins')) {
-            require_once ABSPATH . 'wp-admin/includes/plugin.php';
-        }
+        $finder = new Finder();
+        $finder->in(getcwd() . '/web/content/mu-plugins')
+               ->files()->name('*.php')
+               ->sortByName();
 
-        $discoveredPlugins = get_plugins('/../mu-plugins');
-        $currentPlugins    = get_mu_plugins();
+        $pluginsFinder   = (clone $finder)->depth(1);
+        $muPluginsFinder = (clone $finder)->depth(0);
 
-        foreach (array_column($discoveredPlugins, 'Name') as $pluginName) {
-            WP_CLI::line("Discovered must-use plugin: <info>{$pluginName}</info>");
+        $plugins   = $this->resolvePlugins($pluginsFinder);
+        $muPlugins = $this->resolvePlugins($muPluginsFinder);
+
+        foreach (array_column($plugins, 'Name') as $pluginName) {
+            WP_CLI::line('Discovered plugin: ' . $pluginName);
         }
 
         $this->write(
             getcwd() . '/bootstrap/cache/mu-plugins.php',
-            $this->all($discoveredPlugins, $currentPlugins)
+            array_merge($plugins, $muPlugins)
         );
 
         $this->write(
-            getcwd() . '/bootstrap/cache/required-mu-plugins.php',
-            $this->required($discoveredPlugins, $currentPlugins)
+            getcwd() . '/bootstrap/cache/plugins.php',
+            array_keys($plugins)
         );
 
         WP_CLI::success('The must-use plugins manifest generated successfully.');
     }
 
     /**
-     * Get all must-use plugins.
+     * Resolve plugins from a given finder.
      *
-     * @param array $discoveredPlugins
-     * @param array $currentPlugins
+     * @param Finder $finder
      *
      * @return array
      */
-    private function all(array $discoveredPlugins, array $currentPlugins): array
+    private function resolvePlugins(Finder $finder): array
     {
-        // Mark discovered plugins
-        $discoveredPlugins = array_map(function (array $plugin) {
-            $plugin['Name'] .= ' *';
+        $results = iterator_to_array($finder, false);
 
-            return $plugin;
-        }, $discoveredPlugins);
+        $files = array_map(function (SplFileInfo $file) {
+            return $file->getRelativePathname();
+        }, $results);
 
-        $plugins = array_merge($discoveredPlugins, $currentPlugins);
-        $plugins = array_unique($plugins, SORT_REGULAR);
+        $data = array_map(function (SplFileInfo $file) {
+            return $this->extractPluginData($this->extractDocBlock($file->getContents()));
+        }, $results);
+
+        $plugins = array_combine($files, $data);
+        $plugins = array_filter($plugins, function (array $data) {
+            return !empty($data['Name']);
+        });
 
         return $plugins;
     }
 
     /**
-     * Get the required must-use plugins.
+     * Extract the doc block from a given source.
      *
-     * @param array $discoveredPlugins
-     * @param array $currentPlugins
+     * @param string $source
+     *
+     * @return string
+     */
+    private function extractDocBlock(string $source): string
+    {
+        $comments = array_filter(token_get_all($source), function ($token) {
+            return in_array($token[0], [T_COMMENT, T_DOC_COMMENT], true);
+        });
+
+        $comment = array_shift($comments);
+
+        return $comment[1];
+    }
+
+    /**
+     * Extract the plugin data from a given source.
+     *
+     * @param string $source
      *
      * @return array
      */
-    private function required(array $discoveredPlugins, array $currentPlugins): array
+    private function extractPluginData(string $source): array
     {
-        $plugins = array_diff_key($discoveredPlugins, $currentPlugins);
-        $plugins = array_keys($plugins);
+        $headers = [
+            'Name'        => 'Plugin Name',
+            'PluginURI'   => 'Plugin URI',
+            'Version'     => 'Version',
+            'Description' => 'Description',
+            'Author'      => 'Author',
+            'AuthorURI'   => 'Author URI',
+            'TextDomain'  => 'Text Domain',
+            'DomainPath'  => 'Domain Path',
+            'Network'     => 'Network',
+        ];
 
-        return $plugins;
+        $patterns = array_map(function (string $regex) {
+            return '/^[ \t\/*#@]*' . preg_quote($regex, '/') . ':(.*)$/mi';
+        }, $headers);
+
+        $matches = array_map(function (string $pattern) use ($source) {
+            return preg_match($pattern, $source, $match) ? $match[1] : '';
+        }, $patterns);
+
+        $matches = array_map(function (string $match) {
+            return trim(preg_replace('/\s*(?:\*\/|\?>).*/', '', $match));
+        }, $matches);
+
+        $data = array_combine(array_keys($headers), $matches);
+
+        $data['Network']    = ('true' === strtolower($data['Network']));
+        $data['Title']      = $data['Name'];
+        $data['AuthorName'] = $data['Author'];
+
+        return $data;
     }
 
     /**
