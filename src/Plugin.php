@@ -56,6 +56,10 @@ final class Plugin implements PluginInterface, EventSubscriberInterface
                ->files()->name('*.php')
                ->sortByName();
 
+        if (!$finder->hasResults()) {
+            return;
+        }
+
         $pluginsFinder   = (clone $finder)->depth(1);
         $muPluginsFinder = (clone $finder)->depth(0);
 
