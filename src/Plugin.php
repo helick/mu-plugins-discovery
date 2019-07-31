@@ -51,8 +51,12 @@ final class Plugin implements PluginInterface, EventSubscriberInterface
      */
     public function discover(): void
     {
+        if (!is_dir($discoveryPath = getcwd() . '/web/content/mu-plugins')) {
+            return;
+        }
+
         $finder = new Finder();
-        $finder->in(getcwd() . '/web/content/mu-plugins')
+        $finder->in($discoveryPath)
                ->files()->name('*.php')
                ->sortByName();
 
