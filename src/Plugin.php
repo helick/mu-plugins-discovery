@@ -2,30 +2,54 @@
 
 namespace Helick\MUPluginsDiscovery;
 
+use Composer\Composer;
+use Composer\EventDispatcher\EventSubscriberInterface;
+use Composer\IO\IOInterface;
+use Composer\Plugin\PluginInterface;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Finder\SplFileInfo;
-use WP_CLI;
 
-final class Command
+final class Plugin implements PluginInterface, EventSubscriberInterface
 {
     /**
-     * Register the command.
+     * The composer instance.
      *
-     * @return void
+     * @var Composer
      */
-    public static function register(): void
+    private $composer;
+
+    /**
+     * The IO instance.
+     *
+     * @var IOInterface
+     */
+    private $io;
+
+    /**
+     * @inheritDoc
+     */
+    public function activate(Composer $composer, IOInterface $io)
     {
-        WP_CLI::add_command('mu-plugins discover', static::class);
+        $this->composer = $composer;
+        $this->io       = $io;
+    }
+
+    /**
+     * @inheritDoc
+     */
+    public static function getSubscribedEvents()
+    {
+        return [
+            'post-autoload-dump' => ['discover'],
+        ];
     }
 
     /**
      * Rebuild the cached must-use plugins manifest.
      *
-     * @when before_wp_load
-     *
      * @return void
      */
-    public function __invoke(): void
+    public function discover(): void
     {
         $finder = new Finder();
         $finder->in(getcwd() . '/web/content/mu-plugins')
@@ -39,7 +63,7 @@ final class Command
         $muPlugins = $this->resolvePlugins($muPluginsFinder);
 
         foreach (array_column($plugins, 'Name') as $pluginName) {
-            WP_CLI::line('Discovered plugin: ' . $pluginName);
+            $this->io->write('Discovered plugin: ' . $pluginName, true, IOInterface::DEBUG);
         }
 
         $this->write(
@@ -52,7 +76,7 @@ final class Command
             array_keys($plugins)
         );
 
-        WP_CLI::success('The must-use plugins manifest generated successfully.');
+        $this->io->write('The must-use plugins manifest generated successfully.');
     }
 
     /**
@@ -153,7 +177,7 @@ final class Command
     private function write(string $path, array $manifest): void
     {
         if (!is_writable($directory = dirname($path))) {
-            WP_CLI::error("The {$directory} directory must be present and writable.");
+            $this->io->writeError("The {$directory} directory must be present and writable.");
         }
 
         file_put_contents(
